@@ -1,0 +1,3 @@
+requests
+smolagents
+python-dotenv
