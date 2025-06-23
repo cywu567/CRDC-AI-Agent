@@ -1,0 +1,8 @@
+requests
+smolagents
+python-dotenv
+pydantic
+pyyaml
+pillow
+jinja2
+huggingface_hub
