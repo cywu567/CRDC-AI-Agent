@@ -2,12 +2,12 @@ from smolagents.tools import Tool
 from typing import List, Dict
 from typing import Type
 from pydantic import BaseModel, Field
+from db.db import log_feedback, get_file_id, insert_file
 from datetime import datetime
 import time
 import os
 import shutil
-
-
+    
 class PrepareAllMetadataInput(BaseModel):
     folder_path: str = Field(..., description="Path to the folder containing sample metadata files to prepare.")
     base_dir: str = Field(..., description="Base directory where the 'submissions' folder resides or will be created.")
@@ -26,9 +26,6 @@ class PrepareAllMetadataTool(Tool):
     inputs = input_model.model_json_schema()["properties"]
     
     def forward(self, folder_path: str, base_dir: str, submission_name: str) -> List[Dict]:
-        """
-        The forward method prepares the metadata files and organizes them into a structured folder.
-        """
         base_dir = os.path.normpath(base_dir)
 
         # Determine the root directory for submissions
@@ -65,14 +62,26 @@ class PrepareAllMetadataTool(Tool):
                     "submission_id": f"{submission_name}_{int(time.time())}",
                     "created_at": datetime.now().isoformat(),
                 })
-        return results
+                
+                try:
+                    file_id = insert_file(submission_name, new_file_name, dest_path)
+                except Exception as e:
+                    print(f"Warning: could not insert file record for {new_file_name}: {e}")
+                    file_id = -1
 
-    def _run(self, args: PrepareAllMetadataInput) -> List[Dict]:
-        """
-        The _run method is responsible for invoking the forward method with arguments.
-        """
-        return self.forward(
-            folder_path=args.folder_path,
-            base_dir=args.base_dir,
-            submission_name=args.submission_name
-        )
+                # Try to get real file_id and log feedback per file
+                try:
+                    file_id = get_file_id(submission_name, new_file_name)
+                    log_feedback(
+                        file_id=file_id,
+                        source="system",
+                        is_accepted=True,
+                        comments="File copied and metadata prepared.",
+                        tool="PrepareMetadata"
+                    )
+                except Exception as fe:
+                    # File not found or DB error — fallback to dummy log or print warning
+                    print(f"Warning: could not log feedback for file {new_file_name}: {fe}")
+
+
+        return results

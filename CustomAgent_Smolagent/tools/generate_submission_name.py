@@ -1,5 +1,6 @@
 from smolagents.tools import Tool
 from pydantic import BaseModel
+from db.db import log_feedback, insert_submission
 from typing import Type
 from datetime import datetime
 
@@ -17,15 +18,16 @@ class GenerateSubmissionNameTool(Tool):
     output_type = "string"
     inputs = input_model.model_json_schema()["properties"]
     
-    def forward(self) -> str:
-        """
-        The forward method is responsible for generating a unique submission name
-        using the current date and time.
-        """
-        return "sub_" + datetime.now().strftime("%y%m%d_%H%M%S")
+    def forward(self):
+        submission_name = "sub_" + datetime.now().strftime("%y%m%d_%H%M%S")
+        insert_submission(submission_name)
+        dummy_file_id = -1
+        log_feedback(
+            file_id=dummy_file_id,
+            source="system",
+            tool="GenerateSubmissionName",
+            is_accepted=True,
+            comments=f"Generated submission name: {submission_name}"
+        )
 
-    def _run(self, args: EmptyInput) -> str:
-        """
-        The _run method is responsible for invoking the forward method.
-        """
-        return self.forward()
+        return submission_name

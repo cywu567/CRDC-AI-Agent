@@ -1,4 +1,5 @@
 from smolagents.tools import Tool
+from db.db import log_feedback
 from typing import Type
 from pydantic import BaseModel, Field
 import time
@@ -31,24 +32,24 @@ class CreateSubmissionTool(Tool):
     inputs = input_model.model_json_schema()["properties"]
     
     def forward(self, study_id: str, data_commons: str, name: str, intention: str, data_type: str) -> dict:
-        """
-        The forward method now accepts the expected arguments, matching the `inputs`.
-        """
+        dummy_file_id = -1
+
         mutation = """
         mutation createSubmission($studyID: String!, $dataCommons: String!, $name: String!, $intention: String!, $dataType: String!) {
-        createSubmission(
-            studyID: $studyID
-            dataCommons: $dataCommons
-            name: $name
-            intention: $intention
-            dataType: $dataType
-        ) {
-            _id
-            status
-            createdAt
-        }
+            createSubmission(
+                studyID: $studyID
+                dataCommons: $dataCommons
+                name: $name
+                intention: $intention
+                dataType: $dataType
+            ) {
+                _id
+                status
+                createdAt
+            }
         }
         """
+
         variables = {
             "studyID": study_id,
             "dataCommons": data_commons,
@@ -56,24 +57,35 @@ class CreateSubmissionTool(Tool):
             "intention": intention,
             "dataType": data_type,
         }
-        res = requests.post(API_URL, json={"query": mutation, "variables": variables}, headers=HEADERS)
-        if not res.ok:
-            raise Exception(f"Error creating submission: {res.text}")
-        data = res.json()
-        if "errors" in data:
-            raise Exception(f"GraphQL errors in create_submission: {data['errors']}")
-        
-        # Return the response data, which is a dictionary
-        return data["data"]["createSubmission"]
 
-    def _run(self, args: CreateSubmissionInput) -> dict:
-        """
-        The _run method is responsible for passing arguments to the `forward` method.
-        """
-        return self.forward(
-            study_id=args.study_id,
-            data_commons=args.data_commons,
-            name=args.name,
-            intention=args.intention,
-            data_type=args.data_type,
-        )
+        try:
+            res = requests.post(API_URL, json={"query": mutation, "variables": variables}, headers=HEADERS)
+            res.raise_for_status()
+            data = res.json()
+
+            if "errors" in data:
+                raise Exception(f"GraphQL errors: {data['errors']}")
+
+            result = data["data"]["createSubmission"]
+
+            log_feedback(
+                file_id=dummy_file_id,
+                source="system",
+                tool="CreateSubmission",
+                is_accepted=True,
+                comments=f"Submission created successfully: {result['_id']}"
+            )
+
+            return result
+
+        except Exception as e:
+            log_feedback(
+                file_id=dummy_file_id,
+                source="system",
+                tool="CreateSubmission",
+                is_accepted=False,
+                comments=f"Submission creation failed: {str(e)}"
+            )
+            raise
+                
+

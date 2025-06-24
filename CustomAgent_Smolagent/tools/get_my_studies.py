@@ -1,5 +1,6 @@
 from smolagents.tools import Tool
 from typing import Type
+from db.db import log_feedback
 from pydantic import BaseModel, Field
 import requests
 import os
@@ -27,27 +28,36 @@ class GetMyStudiesTool(Tool):
     inputs = input_model.model_json_schema()["properties"]
     
     def forward(self) -> list[str]:
-        """
-        The forward method performs the actual task of fetching study IDs.
-        """
         query = """
         query getMyUser {
-        getMyUser {
+          getMyUser {
             _id
             studies {
-            _id
+              _id
             }
+          }
         }
-        }
         """
-        res = requests.post(API_URL, json={"query": query}, headers=HEADERS)
-        if not res.ok:
-            raise Exception(f"Error fetching studies: {res.text}")
-        data = res.json()
-        return [s["_id"] for s in data["data"]["getMyUser"]["studies"]]
-
-    def _run(self, args: EmptyInput) -> list[str]:
-        """
-        The _run method is responsible for invoking the forward method.
-        """
-        return self.forward()
+        dummy_file_id = -1
+        try:
+            res = requests.post(API_URL, json={"query": query}, headers=HEADERS)
+            res.raise_for_status()
+            data = res.json()
+            study_ids = [s["_id"] for s in data["data"]["getMyUser"]["studies"]]
+            log_feedback(
+                file_id=dummy_file_id,
+                source="system",
+                tool="GetMyStudies",
+                is_accepted=True,
+                comments=f"Fetched {len(study_ids)} study IDs."
+            )
+            return study_ids
+        except Exception as e:
+            log_feedback(
+                file_id=dummy_file_id,
+                source="system",
+                tool="GetMyStudies",
+                is_accepted=False,
+                comments=f"Error fetching studies: {str(e)}"
+            )
+            raise
