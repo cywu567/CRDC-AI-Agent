@@ -2,11 +2,27 @@ from smolagents.tools import Tool
 from typing import List, Dict
 from typing import Type
 from pydantic import BaseModel, Field
-from db.db import log_feedback, get_file_id, insert_file
+from db.db import log_feedback, get_file_id, insert_file, get_feedback_for_tool
 from datetime import datetime
 import time
 import os
 import shutil
+
+def is_expected_metadata_path(path: str, submission_name: str) -> bool:
+    parts = os.path.normpath(path).split(os.sep)
+
+    # What we expect to see at the tail of the path
+    expected_tail = ["CustomAgent_Smolagent", "submissions", submission_name, "metadata"]
+
+    # Look for the last occurrence of the expected sequence
+    for i in range(len(parts) - len(expected_tail) + 1):
+        if parts[i:i+len(expected_tail)] == expected_tail:
+            # Make sure it's the LAST occurrence (i.e., no duplicates further down)
+            remaining = parts[i+len(expected_tail):]
+            if expected_tail[0] not in remaining:
+                return True
+    return False
+
     
 class PrepareAllMetadataInput(BaseModel):
     folder_path: str = Field(..., description="Path to the folder containing sample metadata files to prepare.")
@@ -27,6 +43,15 @@ class PrepareAllMetadataTool(Tool):
     
     def forward(self, folder_path: str, base_dir: str, submission_name: str) -> List[Dict]:
         base_dir = os.path.normpath(base_dir)
+        
+        feedback = get_feedback_for_tool(tool="PrepareMetadata")
+        for _, accepted, comment in reversed(feedback):
+            if accepted and "Saved to:" in comment:
+                path = comment.split("Saved to:")[1].strip()
+                if "CustomAgent_Smolagent/submissions" in path:
+                    learned = path.split("CustomAgent_Smolagent/submissions")[0].rstrip(os.sep)
+                    base_dir = learned
+                    break
 
         # Determine the root directory for submissions
         if os.path.basename(base_dir) == "submissions":
@@ -72,15 +97,24 @@ class PrepareAllMetadataTool(Tool):
                 # Try to get real file_id and log feedback per file
                 try:
                     file_id = get_file_id(submission_name, new_file_name)
-                    log_feedback(
-                        file_id=file_id,
-                        source="system",
-                        is_accepted=True,
-                        comments="File copied and metadata prepared.",
-                        tool="PrepareMetadata"
-                    )
+                    
+                    if is_expected_metadata_path(dest_path, submission_name):
+                        log_feedback(
+                            file_id=file_id,
+                            source="system",
+                            is_accepted=True,
+                            comments=f"File copied and metadata prepared. Saved to: {dest_path}",
+                            tool="PrepareMetadata"
+                        )
+                    else:
+                        log_feedback(
+                            file_id=file_id,
+                            source="system",
+                            is_accepted=False,
+                            comments=f"Invalid save path: {dest_path}",
+                            tool="PrepareMetadata"
+                        )
                 except Exception as fe:
-                    # File not found or DB error — fallback to dummy log or print warning
                     print(f"Warning: could not log feedback for file {new_file_name}: {fe}")
 
 

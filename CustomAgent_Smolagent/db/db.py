@@ -88,3 +88,29 @@ def insert_submission(submission_name: str) -> int:
             (submission_name,)
         )
         return cur.lastrowid
+    
+    
+def get_feedback_for_tool(tool: str, file_name: str | None = None) -> list[tuple[str, bool, str]]:
+    """
+    Returns a list of (source, is_accepted, comments) for a specific tool,
+    optionally filtered by file name.
+    """
+    with connect() as conn:
+        cursor = conn.cursor()
+        
+        if file_name:
+            cursor.execute("""
+                SELECT f.source, f.is_accepted, f.comments
+                FROM feedback f
+                JOIN files fi ON fi.id = f.file_id
+                WHERE fi.file_name = ? AND f.tool = ?
+            """, (file_name, tool))
+        else:
+            cursor.execute("""
+                SELECT f.source, f.is_accepted, f.comments
+                FROM feedback f
+                WHERE f.tool = ?
+            """, (tool,))
+        
+        return cursor.fetchall()
+
