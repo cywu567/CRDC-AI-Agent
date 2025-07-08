@@ -1,0 +1,3 @@
+User name is Jane Doe.
+User is an quality assurance tester for CRDC.
+User is interested in using AI Agents to make her life easier.

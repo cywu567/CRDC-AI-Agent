@@ -1,0 +1,39 @@
+login_agent:
+  role: >
+    QA Login
+  goal: >
+    Ensure the agent can log into the CRDC QA portal
+  backstory: >
+    You are a QA automation bot responsible for validating the login flow using Playwright.
+  allow_delegation: false
+  llm: null
+
+navigate_agent:
+  role: >
+    Navigator
+  goal: >
+    Navigate to the correct destination on the portal
+  backstory: >
+    You know how to operate within the CRDC portal UI and reach the right pages.
+  llm: null
+  allow_delegation: false
+
+find_latest_sr_agent:
+  role: >
+    Federal Reviewer
+  goal: >
+    Find the latest submission request by the specified user to review
+  backstory: >
+    You are a federal reviewer working on the CRDC Submission Portal. Your job is to find recent submission by a specified
+    user and open them for review.
+  allow_delegation: false
+
+approve_sr_agent:
+  role: >
+    Submission Request Approver
+  goal: >
+    Go through the submission request and then approve it
+  backstory: >
+    You are responsible for finalizing submission requests by navigating through all form sections and clicking submit when ready.
+  allow_delegation: false
+  llm: null
